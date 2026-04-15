@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import SocialProviders from "./SocialProviders";
 import {useRouter} from "next/navigation";
+import { sanitizeText, isValidEmail } from "@/lib/utils/security";
 
 type Props = {
   mode: "sign-in" | "sign-up";
@@ -18,9 +19,32 @@ export default function AuthForm({ mode, onSubmit }: Props) {
     e.preventDefault();
 
     const formData = new FormData(e.currentTarget);
+    
+    // Sanitize form data before submission
+    const sanitizedFormData = new FormData();
+    for (const [key, value] of formData.entries()) {
+      if (typeof value === 'string') {
+        if (key === 'email') {
+          // Validate email format
+          if (!isValidEmail(value)) {
+            alert('Please enter a valid email address.');
+            return;
+          }
+          sanitizedFormData.append(key, sanitizeText(value));
+        } else if (key === 'name') {
+          // Sanitize name input
+          sanitizedFormData.append(key, sanitizeText(value));
+        } else {
+          // For other fields, just append the original value
+          sanitizedFormData.append(key, value);
+        }
+      } else {
+        sanitizedFormData.append(key, value);
+      }
+    }
 
     try {
-      const result = await onSubmit(formData);
+      const result = await onSubmit(sanitizedFormData);
 
       if(result?.ok) router.push("/");
     } catch (e) {
@@ -110,7 +134,7 @@ export default function AuthForm({ mode, onSubmit }: Props) {
             <button
               type="button"
               className="absolute inset-y-0 right-0 px-3 text-caption text-dark-700"
-              onClick={() => setShow((v) => !v)}
+              onClick={() => setShow((prev) => !prev)}
               aria-label={show ? "Hide password" : "Show password"}
             >
               {show ? "Hide" : "Show"}

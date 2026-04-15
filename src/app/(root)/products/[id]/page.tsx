@@ -4,6 +4,7 @@ import { Card, CollapsibleSection, ProductGallery, SizePicker } from "@/componen
 import { Heart, ShoppingBag, Star } from "lucide-react";
 import ColorSwatches from "@/components/ColorSwatches";
 import { getProduct, getProductReviews, getRecommendedProducts, type Review, type RecommendedProduct } from "@/lib/actions/product";
+import { sanitizeText, escapeHtml } from "@/lib/utils/security";
 
 type GalleryVariant = { color: string; images: string[] };
 
@@ -16,7 +17,7 @@ function NotFoundBlock() {
   return (
     <section className="mx-auto max-w-3xl rounded-xl border border-light-300 bg-light-100 p-8 text-center">
       <h1 className="text-heading-3 text-dark-900">Product not found</h1>
-      <p className="mt-2 text-body text-dark-700">The product you’re looking for doesn’t exist or may have been removed.</p>
+      <p className="mt-2 text-body text-dark-700">The product you{'\''}re looking for doesn{'\''}t exist or may have been removed.</p>
       <div className="mt-6">
         <Link
           href="/products"
@@ -53,15 +54,15 @@ async function ReviewsSection({ productId }: { productId: string }) {
           {reviews.slice(0, 10).map((r) => (
             <li key={r.id} className="rounded-lg border border-light-300 p-4">
               <div className="mb-1 flex items-center justify-between">
-                <p className="text-body-medium text-dark-900">{r.author}</p>
+                <p className="text-body-medium text-dark-900">{sanitizeText(r.author)}</p>
                 <span className="flex items-center gap-1">
                   {[1, 2, 3, 4, 5].map((i) => (
                     <Star key={i} className={`h-4 w-4 ${i <= r.rating ? "fill-[--color-dark-900]" : ""}`} />
                   ))}
                 </span>
               </div>
-              {r.title && <p className="text-body-medium text-dark-900">{r.title}</p>}
-              {r.content && <p className="mt-1 line-clamp-[8] text-body text-dark-700">{r.content}</p>}
+              {r.title && <p className="text-body-medium text-dark-900">{sanitizeText(r.title)}</p>}
+              {r.content && <p className="mt-1 line-clamp-[8] text-body text-dark-700">{escapeHtml(r.content)}</p>}
               <p className="mt-2 text-caption text-dark-700">{new Date(r.createdAt).toLocaleDateString()}</p>
             </li>
           ))}
@@ -81,7 +82,7 @@ async function AlsoLikeSection({ productId }: { productId: string }) {
         {recs.map((p) => (
           <Card
             key={p.id}
-            title={p.title}
+            title={sanitizeText(p.title)}
             imageSrc={p.imageUrl}
             price={p.price ?? undefined}
             href={`/products/${p.id}`}
@@ -151,7 +152,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
       <nav className="py-4 text-caption text-dark-700">
         <Link href="/" className="hover:underline">Home</Link> / <Link href="/products" className="hover:underline">Products</Link> /{" "}
-        <span className="text-dark-900">{product.name}</span>
+        <span className="text-dark-900">{sanitizeText(product.name)}</span>
       </nav>
 
       <section className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_480px]">
@@ -161,8 +162,8 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
         <div className="flex flex-col gap-6">
           <header className="flex flex-col gap-2">
-            <h1 className="text-heading-2 text-dark-900">{product.name}</h1>
-            {subtitle && <p className="text-body text-dark-700">{subtitle}</p>}
+            <h1 className="text-heading-2 text-dark-900">{sanitizeText(product.name)}</h1>
+            {subtitle && <p className="text-body text-dark-700">{sanitizeText(subtitle)}</p>}
           </header>
 
           <div className="flex items-center gap-3">
@@ -194,7 +195,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           </div>
 
           <CollapsibleSection title="Product Details" defaultOpen>
-            <p>{product.description}</p>
+            <p>{escapeHtml(product.description)}</p>
           </CollapsibleSection>
 
           <CollapsibleSection title="Shipping & Returns">

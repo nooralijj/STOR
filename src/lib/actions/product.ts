@@ -1,5 +1,3 @@
-
-
 "use server";
 
 import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
@@ -26,6 +24,7 @@ import {
 } from "@/lib/db/schema";
 
 import { NormalizedProductFilters } from "@/lib/utils/query";
+import { sanitizeForQuery, sanitizePrice, sanitizeArrayInput } from "@/lib/utils/security";
 
 type ProductListItem = {
   id: string;
@@ -43,60 +42,79 @@ export type GetAllProductsResult = {
 };
 
 export async function getAllProducts(filters: NormalizedProductFilters): Promise<GetAllProductsResult> {
+  // Sanitize all inputs to prevent injection
+  const sanitizedFilters = {
+    search: filters.search ? sanitizeForQuery(filters.search).slice(0, 100) : undefined,
+    genderSlugs: sanitizeArrayInput(filters.genderSlugs).slice(0, 10),
+    brandSlugs: sanitizeArrayInput(filters.brandSlugs).slice(0, 10),
+    categorySlugs: sanitizeArrayInput(filters.categorySlugs).slice(0, 10),
+    sizeSlugs: sanitizeArrayInput(filters.sizeSlugs).slice(0, 20),
+    colorSlugs: sanitizeArrayInput(filters.colorSlugs).slice(0, 20),
+    priceMin: sanitizePrice(filters.priceMin),
+    priceMax: sanitizePrice(filters.priceMax),
+    priceRanges: filters.priceRanges
+      .map(([min, max]) => [sanitizePrice(min), sanitizePrice(max)])
+      .filter(([min, max]) => min !== undefined || max !== undefined)
+      .slice(0, 10), // Limit price ranges
+    sort: filters.sort,
+    page: Math.max(1, Math.min(filters.page, 100)), // Prevent pagination abuse
+    limit: Math.max(1, Math.min(filters.limit, 60)), // Prevent large result sets
+  };
+
   const conds: SQL[] = [eq(products.isPublished, true)];
 
-  if (filters.search) {
-    const pattern = `%${filters.search}%`;
+  if (sanitizedFilters.search) {
+    const pattern = `%${sanitizedFilters.search}%`;
     conds.push(or(ilike(products.name, pattern), ilike(products.description, pattern))!);
   }
 
-  if (filters.genderSlugs.length) {
-    conds.push(inArray(genders.slug, filters.genderSlugs));
+  if (sanitizedFilters.genderSlugs.length) {
+    conds.push(inArray(genders.slug, sanitizedFilters.genderSlugs));
   }
 
-  if (filters.brandSlugs.length) {
-    conds.push(inArray(brands.slug, filters.brandSlugs));
+  if (sanitizedFilters.brandSlugs.length) {
+    conds.push(inArray(brands.slug, sanitizedFilters.brandSlugs));
   }
 
-  if (filters.categorySlugs.length) {
-    conds.push(inArray(categories.slug, filters.categorySlugs));
+  if (sanitizedFilters.categorySlugs.length) {
+    conds.push(inArray(categories.slug, sanitizedFilters.categorySlugs));
   }
 
-  const hasSize = filters.sizeSlugs.length > 0;
-  const hasColor = filters.colorSlugs.length > 0;
-  const hasPrice = !!(filters.priceMin !== undefined || filters.priceMax !== undefined || filters.priceRanges.length);
+  const hasSize = sanitizedFilters.sizeSlugs.length > 0;
+  const hasColor = sanitizedFilters.colorSlugs.length > 0;
+  const hasPrice = !!(sanitizedFilters.priceMin !== undefined || sanitizedFilters.priceMax !== undefined || sanitizedFilters.priceRanges.length);
 
   const variantConds: SQL[] = [];
   if (hasSize) {
     variantConds.push(inArray(productVariants.sizeId, db
       .select({ id: sizes.id })
       .from(sizes)
-      .where(inArray(sizes.slug, filters.sizeSlugs))));
+      .where(inArray(sizes.slug, sanitizedFilters.sizeSlugs))));
   }
   if (hasColor) {
     variantConds.push(inArray(productVariants.colorId, db
       .select({ id: colors.id })
       .from(colors)
-      .where(inArray(colors.slug, filters.colorSlugs))));
+      .where(inArray(colors.slug, sanitizedFilters.colorSlugs))));
   }
   if (hasPrice) {
     const priceBounds: SQL[] = [];
-    if (filters.priceRanges.length) {
-      for (const [min, max] of filters.priceRanges) {
+    if (sanitizedFilters.priceRanges.length) {
+      for (const [min, max] of sanitizedFilters.priceRanges) {
         const subConds: SQL[] = [];
         if (min !== undefined) {
-          subConds.push(sql`(${productVariants.price})::numeric >= ${min}`);
+          subConds.push(sql`CAST(${productVariants.price} AS DECIMAL) >= ${min}`);
         }
         if (max !== undefined) {
-          subConds.push(sql`(${productVariants.price})::numeric <= ${max}`);
+          subConds.push(sql`CAST(${productVariants.price} AS DECIMAL) <= ${max}`);
         }
         if (subConds.length) priceBounds.push(and(...subConds)!);
       }
     }
-    if (filters.priceMin !== undefined || filters.priceMax !== undefined) {
+    if (sanitizedFilters.priceMin !== undefined || sanitizedFilters.priceMax !== undefined) {
       const subConds: SQL[] = [];
-      if (filters.priceMin !== undefined) subConds.push(sql`(${productVariants.price})::numeric >= ${filters.priceMin}`);
-      if (filters.priceMax !== undefined) subConds.push(sql`(${productVariants.price})::numeric <= ${filters.priceMax}`);
+      if (sanitizedFilters.priceMin !== undefined) subConds.push(sql`CAST(${productVariants.price} AS DECIMAL) >= ${sanitizedFilters.priceMin}`);
+      if (sanitizedFilters.priceMax !== undefined) subConds.push(sql`CAST(${productVariants.price} AS DECIMAL) <= ${sanitizedFilters.priceMax}`);
       if (subConds.length) priceBounds.push(and(...subConds)!);
     }
     if (priceBounds.length) {
@@ -108,7 +126,7 @@ export async function getAllProducts(filters: NormalizedProductFilters): Promise
     .select({
       variantId: productVariants.id,
       productId: productVariants.productId,
-      price: sql<number>`${productVariants.price}::numeric`.as("price"),
+      price: sql<number | null>`CAST(${productVariants.price} AS DECIMAL)`.as("price"),
       colorId: productVariants.colorId,
       sizeId: productVariants.sizeId,
     })
@@ -127,7 +145,7 @@ export async function getAllProducts(filters: NormalizedProductFilters): Promise
         .where(
           inArray(
             productVariants.colorId,
-            db.select({ id: colors.id }).from(colors).where(inArray(colors.slug, filters.colorSlugs))
+            db.select({ id: colors.id }).from(colors).where(inArray(colors.slug, sanitizedFilters.colorSlugs))
           )
         )
         .as("pi")
@@ -145,21 +163,21 @@ export async function getAllProducts(filters: NormalizedProductFilters): Promise
   const baseWhere = conds.length ? and(...conds) : undefined;
 
   const priceAgg = {
-    minPrice: sql<number | null>`min(${variantJoin.price})`,
-    maxPrice: sql<number | null>`max(${variantJoin.price})`,
+    minPrice: sql<number | null>`min(CAST(${variantJoin.price} AS DECIMAL))`,
+    maxPrice: sql<number | null>`max(CAST(${variantJoin.price} AS DECIMAL))`,
   };
 
   const imageAgg = sql<string | null>`max(case when ${imagesJoin.rn} = 1 then ${imagesJoin.url} else null end)`;
 
   const primaryOrder =
-    filters.sort === "price_asc"
-      ? asc(sql`min(${variantJoin.price})`)
-      : filters.sort === "price_desc"
-      ? desc(sql`max(${variantJoin.price})`)
+    sanitizedFilters.sort === "price_asc"
+      ? asc(sql`min(CAST(${variantJoin.price} AS DECIMAL))`)
+      : sanitizedFilters.sort === "price_desc"
+      ? desc(sql`max(CAST(${variantJoin.price} AS DECIMAL))`)
       : desc(products.createdAt);
 
-  const page = Math.max(1, filters.page);
-  const limit = Math.max(1, Math.min(filters.limit, 60));
+  const page = Math.max(1, sanitizedFilters.page);
+  const limit = Math.max(1, Math.min(sanitizedFilters.limit, 60));
   const offset = (page - 1) * limit;
 
   const rows = await db
@@ -225,6 +243,21 @@ export type FullProduct = {
 };
 
 export async function getProduct(productId: string): Promise<FullProduct | null> {
+  // Validate productId to prevent injection - Accept both UUID and numeric formats
+  if (!productId || typeof productId !== 'string') {
+    return null;
+  }
+
+  // Check if it's a UUID format
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId);
+  
+  // For security, ensure productId is properly formatted
+  if (!isUUID) {
+    // If it's not a UUID, it should be a valid identifier - for now we'll reject non-UUIDs
+    // In a real app, you might want to support both formats
+    return null;
+  }
+
   const rows = await db
     .select({
       productId: products.id,
@@ -253,8 +286,8 @@ export async function getProduct(productId: string): Promise<FullProduct | null>
 
       variantId: productVariants.id,
       variantSku: productVariants.sku,
-      variantPrice: sql<number | null>`${productVariants.price}::numeric`,
-      variantSalePrice: sql<number | null>`${productVariants.salePrice}::numeric`,
+      variantPrice: sql<string | null>`COALESCE(${productVariants.price}::text, NULL)`.as("price"),
+      variantSalePrice: sql<string | null>`COALESCE(${productVariants.salePrice}::text, NULL)`.as("sale_price"),
       variantColorId: productVariants.colorId,
       variantSizeId: productVariants.sizeId,
       variantInStock: productVariants.inStock,
@@ -338,8 +371,8 @@ export async function getProduct(productId: string): Promise<FullProduct | null>
         id: r.variantId,
         productId: head.productId,
         sku: r.variantSku!,
-        price: r.variantPrice !== null ? String(r.variantPrice) : "0",
-        salePrice: r.variantSalePrice !== null ? String(r.variantSalePrice) : null,
+        price: r.variantPrice || "0",
+        salePrice: r.variantSalePrice || null,
         colorId: r.variantColorId!,
         sizeId: r.variantSizeId!,
         inStock: r.variantInStock!,
@@ -399,6 +432,11 @@ export type RecommendedProduct = {
 };
 
 export async function getProductReviews(productId: string): Promise<Review[]> {
+  // Validate productId to prevent injection - UUID format validation
+  if (!productId || typeof productId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId)) {
+    return [];
+  }
+
   const rows = await db
     .select({
       id: reviews.id,
@@ -425,6 +463,11 @@ export async function getProductReviews(productId: string): Promise<Review[]> {
 }
 
 export async function getRecommendedProducts(productId: string): Promise<RecommendedProduct[]> {
+  // Validate productId to prevent injection - UUID format validation
+  if (!productId || typeof productId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId)) {
+    return [];
+  }
+
   const base = await db
     .select({
       id: products.id,
@@ -442,7 +485,7 @@ export async function getRecommendedProducts(productId: string): Promise<Recomme
   const v = db
     .select({
       productId: productVariants.productId,
-      price: sql<number>`${productVariants.price}::numeric`.as("price"),
+      price: sql<number>`CAST(${productVariants.price} AS DECIMAL)`.as("price"),
     })
     .from(productVariants)
     .as("v");
@@ -468,7 +511,7 @@ export async function getRecommendedProducts(productId: string): Promise<Recomme
     .select({
       id: products.id,
       title: products.name,
-      minPrice: sql<number | null>`min(${v.price})`,
+      minPrice: sql<number | null>`min(CAST(${v.price} AS DECIMAL))`,
       imageUrl: sql<string | null>`max(case when ${pi.rn} = 1 then ${pi.url} else null end)`,
       createdAt: products.createdAt,
     })

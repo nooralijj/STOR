@@ -61,6 +61,11 @@ export default function Card({
             {Array.isArray(meta) ? meta.join(" • ") : meta}
           </p>
         )}
+        {badge && (
+          <span className={`rounded-full border border-light-300 px-2 py-1 text-caption ${toneToBg[badge.tone || "green"]}`}>
+            {badge.label}
+          </span>
+        )}
       </div>
     </article>
   );

@@ -1,6 +1,7 @@
 import React from "react";
 import { Card } from "@/components";
 import {getCurrentUser} from "@/lib/auth/actions";
+import { sanitizeText } from "@/lib/utils/security";
 
 const products = [
   {
@@ -55,9 +56,9 @@ const Home = async () => {
           {products.map((p) => (
             <Card
               key={p.id}
-              title={p.title}
-              subtitle={p.subtitle}
-              meta={p.meta}
+              title={sanitizeText(p.title)}
+              subtitle={sanitizeText(p.subtitle)}
+              meta={sanitizeText(p.meta)}
               imageSrc={p.imageSrc}
               price={p.price}
               badge={p.badge}
