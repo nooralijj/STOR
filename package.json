@@ -24,11 +24,7 @@
     "drizzle-orm": "^0.44.4",
     "html-escaper": "^3.0.3",
     "lucide-react": "^0.475.0",
-<<<<<<< HEAD
     "next": "15.4.6",
-=======
-    "next": "^15.5.14",
->>>>>>> 2ed02c9a6fb6a6837a5732502541b808d189a86a
     "query-string": "^9.1.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
