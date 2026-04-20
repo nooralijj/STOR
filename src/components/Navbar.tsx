@@ -42,6 +42,9 @@ export default function Navbar() {
           <button className="text-body text-dark-900 transition-colors hover:text-dark-700">
             Search
           </button>
+          <Link href="/sign-in" className="text-body text-dark-900 transition-colors hover:text-dark-700">
+            Sign In
+          </Link>
           <button className="text-body text-dark-900 transition-colors hover:text-dark-700">
             My Cart (2)
           </button>
@@ -78,6 +81,9 @@ export default function Navbar() {
             </li>
           ))}
           <li className="flex items-center justify-between pt-2">
+            <Link href="/sign-in" className="text-body" onClick={() => setOpen(false)}>
+              Sign In
+            </Link>
             <button className="text-body">Search</button>
             <button className="text-body">My Cart (2)</button>
           </li>
