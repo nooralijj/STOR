@@ -7,10 +7,11 @@ import { db } from "@/lib/db";
 import { guests } from "@/lib/db/schema/index";
 import { and, eq, lt } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { sanitizeText, isValidEmail } from "@/lib/utils/security";
 
 const COOKIE_OPTIONS = {
   httpOnly: true as const,
-  secure: true as const,
+  secure: process.env.NODE_ENV === "production",
   sameSite: "strict" as const,
   path: "/" as const,
   maxAge: 60 * 60 * 24 * 7, // 7 days
@@ -67,7 +68,19 @@ export async function signUp(formData: FormData) {
     password: formData.get('password') as string,
   }
 
-  const data = signUpSchema.parse(rawData);
+  // Sanitize inputs
+  const sanitizedData = {
+    name: sanitizeText(rawData.name),
+    email: sanitizeText(rawData.email),
+    password: rawData.password, // Don't sanitize password as it could affect special chars
+  }
+
+  const data = signUpSchema.parse(sanitizedData);
+
+  // Validate email separately for extra security
+  if (!isValidEmail(data.email)) {
+    throw new Error("Invalid email format");
+  }
 
   const res = await auth.api.signUpEmail({
     body: {
@@ -92,7 +105,18 @@ export async function signIn(formData: FormData) {
     password: formData.get('password') as string,
   }
 
-  const data = signInSchema.parse(rawData);
+  // Sanitize inputs
+  const sanitizedData = {
+    email: sanitizeText(rawData.email),
+    password: rawData.password, // Don't sanitize password as it could affect special chars
+  }
+
+  const data = signInSchema.parse(sanitizedData);
+
+  // Validate email separately for extra security
+  if (!isValidEmail(data.email)) {
+    throw new Error("Invalid email format");
+  }
 
   const res = await auth.api.signInEmail({
     body: {
