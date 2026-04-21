@@ -1,0 +1,51 @@
+{
+  "version": "2.3.0",
+  "summary": {
+    "title": "Threat Model - E-commerce App",
+    "owner": "Aya",
+    "description": "This is a full-stack e-commerce web application built with Next.js (App Router), TypeScript, and PostgreSQL (Neon DB). Authentication is handled by Better Auth with JWT stored in HttpOnly cookies. Drizzle ORM is used for database queries. The frontend uses Zustand for client state (shopping cart). Payment is integrated via Stripe/PayPal (assume external API). The app is hosted on Vercel. Key assets: user PII, order history, payment tokens, admin panel.",
+    "id": 0
+  },
+  "detail": {
+    "contributors": [],
+    "diagrams": [
+      {
+        "id": 0,
+        "title": "New STRIDE diagram",
+        "diagramType": "STRIDE",
+        "placeholder": "New STRIDE diagram description",
+        "thumbnail": "./public/content/images/thumbnail.stride.jpg",
+        "version": "2.3.0",
+        "cells": [
+          {
+            "position": {
+              "x": 190,
+              "y": 10
+            },
+            "size": {
+              "width": 190,
+              "height": 60
+            },
+            "attrs": {
+              "text": {
+                "text": "A new blank model template"
+              }
+            },
+            "visible": true,
+            "shape": "td-text-block",
+            "zIndex": 1,
+            "id": "f3ba6ded-7614-456e-b6b8-76d9f227e9de",
+            "data": {
+              "type": "tm.Text",
+              "name": "A new blank model template",
+              "hasOpenThreats": false
+            }
+          }
+        ]
+      }
+    ],
+    "diagramTop": 1,
+    "reviewer": "",
+    "threatTop": 0
+  }
+}
